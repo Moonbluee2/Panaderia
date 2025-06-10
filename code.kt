@@ -1,5 +1,10 @@
 fun main() {
     val moneda = "$"
+    val productos = MutableMapof(
+        "galletas" to Pair (0, 0.0),
+        "muffins" to Pair(0, 0.0),
+        "pasteles" to Pair(0, 0.0)
+    )
 
     fun leerEntero(mensaje: String): Int {
         while (true) {
