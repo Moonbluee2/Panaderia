@@ -1,6 +1,6 @@
 fun main() {
     val panaderia = Panaderia()
-    println("¡Bienvenido a la Panadería!")
+    println("¡Bienvenido al sistema de la Panadería!")
 
     while (true) {
         println("\nMenú principal:")
@@ -13,7 +13,7 @@ fun main() {
         when (leerEntero("Selecciona una opción: ")) {
             1 -> panaderia.mostrarMenu()
             2 -> panaderia.reabastecerProducto()
-            3 -> panaderia.realizarPedido()
+            3 -> panaderia.iniciarPedido()
             4 -> panaderia.verPedidos()
             5 -> {
                 println("¡Gracias por usar el sistema!")
@@ -24,7 +24,7 @@ fun main() {
     }
 }
 
-// Clases y funciones
+// --- Clases ---
 
 class Producto(private val nombre: String, private var precio: Double, private var cantidad: Int) {
     fun getNombre() = nombre
@@ -47,15 +47,35 @@ class Producto(private val nombre: String, private var precio: Double, private v
     }
 
     override fun toString(): String {
-        return "$nombre: $cantidad unidades | Precio unitario: $${"%.2f".format(precio)}"
+        return "$nombre: $cantidad unidades | Precio: $${"%.2f".format(precio)}"
     }
 }
 
-class Pedido(private val producto: Producto, private val cantidad: Int) {
-    private val total = producto.getPrecio() * cantidad
+data class DetallePedido(val producto: Producto, val cantidad: Int) {
+    fun subtotal(): Double = cantidad * producto.getPrecio()
+    override fun toString(): String =
+        "- ${producto.getNombre()} x$cantidad = $${"%.2f".format(subtotal())}"
+}
+
+class Pedido(
+    private val cliente: String,
+    private val numeroOrden: Int,
+    private val detalles: List<DetallePedido>
+) {
+    private val total = detalles.sumOf { it.subtotal() }
 
     override fun toString(): String {
-        return "Pedido: ${producto.getNombre()} x$cantidad = $${"%.2f".format(total)}"
+        val resumen = detalles.joinToString("\n") { it.toString() }
+        return """
+            Pedido #$numeroOrden - Cliente: $cliente
+            $resumen
+            Total: $${"%.2f".format(total)}
+        """.trimIndent()
+    }
+
+    fun mostrarAgradecimiento() {
+        println("\nGracias por tu compra, $cliente ❤️")
+        println("Tu número de orden es: $numeroOrden")
     }
 }
 
@@ -65,7 +85,9 @@ class Panaderia {
         Producto("muffins", 8.0, 10),
         Producto("pasteles", 15.0, 5)
     )
+
     private val pedidos = mutableListOf<Pedido>()
+    private var contadorOrdenes = 1
 
     fun mostrarMenu() {
         println("\nMenú de productos:")
@@ -73,7 +95,7 @@ class Panaderia {
     }
 
     fun reabastecerProducto() {
-        print("Introduce el nombre del producto a reabastecer: ")
+        print("Nombre del producto a reabastecer: ")
         val nombre = readLine()?.lowercase()?.trim()
         val producto = productos.find { it.getNombre() == nombre }
 
@@ -82,30 +104,62 @@ class Panaderia {
             val precio = leerDecimal("Nuevo precio unitario: ")
             producto.agregarStock(cantidad)
             producto.setPrecio(precio)
-            println("Producto actualizado con éxito.")
+            println("Producto actualizado.")
         } else {
             println("Producto no encontrado.")
         }
     }
 
-    fun realizarPedido() {
-        print("Introduce el nombre del producto a comprar: ")
-        val nombre = readLine()?.lowercase()?.trim()
-        val producto = productos.find { it.getNombre() == nombre }
+    fun iniciarPedido() {
+        print("Nombre del cliente: ")
+        val cliente = readLine()?.trim() ?: "Cliente"
 
-        if (producto != null) {
-            val cantidad = leerEntero("Cantidad a comprar: ")
+        val detalles = mutableListOf<DetallePedido>()
 
-            if (producto.getCantidad() >= cantidad) {
-                producto.reducirStock(cantidad)
-                val pedido = Pedido(producto, cantidad)
-                pedidos.add(pedido)
-                println("¡Pedido realizado con éxito!\n$pedido")
+        while (true) {
+            mostrarMenu()
+            print("Producto a agregar (o escribe 'fin' para terminar): ")
+            val nombre = readLine()?.lowercase()?.trim()
+            if (nombre == "fin") break
+
+            val producto = productos.find { it.getNombre() == nombre }
+
+            if (producto != null) {
+                val cantidad = leerEntero("Cantidad: ")
+                if (producto.getCantidad() >= cantidad) {
+                    detalles.add(DetallePedido(producto, cantidad))
+                } else {
+                    println("Stock insuficiente.")
+                }
             } else {
-                println("No hay suficiente stock disponible.")
+                println("Producto no encontrado.")
             }
+        }
+
+        if (detalles.isEmpty()) {
+            println("No se agregaron productos al pedido.")
+            return
+        }
+
+        val numeroOrden = contadorOrdenes++
+        val pedidoTemp = Pedido(cliente, numeroOrden, detalles)
+
+        println("\nResumen del pedido:")
+        println(pedidoTemp)
+
+        print("\n¿Deseas modificar el pedido antes de confirmar? (s/n): ")
+        val respuesta = readLine()?.lowercase()
+
+        if (respuesta == "s") {
+            println("Cancelando pedido. Puedes comenzarlo nuevamente si lo deseas.")
         } else {
-            println("Producto no encontrado.")
+            // Confirmar
+            detalles.forEach {
+                it.producto.reducirStock(it.cantidad)
+            }
+            pedidos.add(pedidoTemp)
+            println("¡Pedido confirmado!")
+            pedidoTemp.mostrarAgradecimiento()
         }
     }
 
@@ -114,12 +168,15 @@ class Panaderia {
             println("No hay pedidos aún.")
         } else {
             println("\nPedidos realizados:")
-            pedidos.forEach { println(it) }
+            pedidos.forEach {
+                println("\n--------------------")
+                println(it)
+            }
         }
     }
 }
 
-// Funciones auxiliares de lectura
+// --- Funciones auxiliares ---
 
 fun leerEntero(mensaje: String): Int {
     while (true) {
